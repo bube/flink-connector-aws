@@ -90,7 +90,19 @@ public class KinesisSourceConfigOptions {
                     .durationType()
                     .defaultValue(Duration.ofMillis(250))
                     .withDescription(
-                            "The interval in milliseconds between fetches with empty records");
+                            "The interval between fetches that returned no records. The interval "
+                                    + "is applied independently to each shard.");
+
+    public static final ConfigOption<Duration> READER_NON_EMPTY_RECORDS_FETCH_INTERVAL =
+            ConfigOptions.key("source.reader.nonempty-records-fetch-interval")
+                    .durationType()
+                    .defaultValue(Duration.ZERO)
+                    .withDescription(
+                            "The interval between fetches that returned records. By default there "
+                                    + "is no interval, and the next fetch is performed at the "
+                                    + "first opportunity. The interval is applied independently "
+                                    + "to each shard, limiting how often this source calls "
+                                    + "GetRecords on any single shard.");
 
     public static final ConfigOption<ConsumerLifecycle> EFO_CONSUMER_LIFECYCLE =
             ConfigOptions.key("source.efo.lifecycle")

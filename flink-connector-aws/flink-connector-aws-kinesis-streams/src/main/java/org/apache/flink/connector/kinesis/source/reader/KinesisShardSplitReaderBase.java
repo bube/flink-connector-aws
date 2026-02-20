@@ -65,6 +65,7 @@ public abstract class KinesisShardSplitReaderBase
     private final Map<String, KinesisShardMetrics> shardMetricGroupMap;
 
     private final long emptyRecordsIntervalMillis;
+    private final long nonEmptyRecordsIntervalMillis;
 
     private final Map<KinesisShardSplitState, Long> scheduledFetchTimes = new WeakHashMap<>();
 
@@ -74,6 +75,10 @@ public abstract class KinesisShardSplitReaderBase
         this.emptyRecordsIntervalMillis =
                 configuration
                         .get(KinesisSourceConfigOptions.READER_EMPTY_RECORDS_FETCH_INTERVAL)
+                        .toMillis();
+        this.nonEmptyRecordsIntervalMillis =
+                configuration
+                        .get(KinesisSourceConfigOptions.READER_NON_EMPTY_RECORDS_FETCH_INTERVAL)
                         .toMillis();
     }
 
@@ -179,29 +184,45 @@ public abstract class KinesisShardSplitReaderBase
     }
 
     /**
-     * Schedules next fetch time, to be called immediately on the result of a fetchRecords() call.
+     * Schedules the next fetch time. To be called immediately after a fetchRecords() call.
      *
-     * <p>If recordBatch does not contain records, next fetchRecords() is scheduled. Before
-     * scheduled time, fetcher thread will skip fetching (and have small sleep) for the split.
+     * <p>If recordBatch is null or contains no records, the next fetch is scheduled using
+     * emptyRecordsIntervalMillis. Before the scheduled time, the fetcher thread will skip fetching
+     * (and have a small sleep) for the split.
      *
-     * <p>If recordBatch is not empty, next fetchRecords() time is not scheduled resulting in next
-     * fetch on the split is performed at first opportunity.
+     * <p>If recordBatch is not empty, the next fetch is scheduled using
+     * nonEmptyRecordsIntervalMillis. When that interval is zero (the default), no fetch time is
+     * scheduled and the next fetch on the split is performed at the first opportunity.
      *
-     * @param splitState splitState on which the fetchRecords() was called on
-     * @param recordBatch recordBatch returned by fetchRecords()
+     * @param splitState split state the fetchRecords() call was made for
+     * @param recordBatch record batch returned by fetchRecords()
      */
     private void scheduleNextFetchTime(KinesisShardSplitState splitState, RecordBatch recordBatch) {
         if (recordBatch == null || recordBatch.getRecords().isEmpty()) {
-            long scheduledGetRecordTimeMillis =
-                    System.currentTimeMillis() + emptyRecordsIntervalMillis;
-            this.scheduledFetchTimes.put(splitState, scheduledGetRecordTimeMillis);
+            long scheduledGetRecordTimeMillis = scheduleAt(splitState, emptyRecordsIntervalMillis);
             if (LOG.isDebugEnabled()) {
                 LOG.debug(
-                        "Fetched zero records from split {}, scheduling next fetch to {}",
+                        "Fetched zero records from split {}, scheduling next fetch at {}",
+                        splitState.getSplitId(),
+                        new Date(scheduledGetRecordTimeMillis).toInstant());
+            }
+        } else if (nonEmptyRecordsIntervalMillis > 0) {
+            long scheduledGetRecordTimeMillis =
+                    scheduleAt(splitState, nonEmptyRecordsIntervalMillis);
+            if (LOG.isDebugEnabled()) {
+                LOG.debug(
+                        "Fetched {} records from split {}, scheduling next fetch at {}",
+                        recordBatch.getRecords().size(),
                         splitState.getSplitId(),
                         new Date(scheduledGetRecordTimeMillis).toInstant());
             }
         }
+    }
+
+    private long scheduleAt(KinesisShardSplitState splitState, long intervalMillis) {
+        long scheduledGetRecordTimeMillis = System.currentTimeMillis() + intervalMillis;
+        this.scheduledFetchTimes.put(splitState, scheduledGetRecordTimeMillis);
+        return scheduledGetRecordTimeMillis;
     }
 
     /**
