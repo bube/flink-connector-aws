@@ -405,6 +405,22 @@ Connector Options
       <td>The <code>ReaderType</code> to use for sources (<code>POLLING|EFO</code>).</td>
     </tr>
     <tr>
+      <td><h5>source.reader.empty-records-fetch-interval</h5></td>
+      <td>optional</td>
+      <td>no</td>
+      <td style="word-wrap: break-word;">250 ms</td>
+      <td>Duration</td>
+      <td>The interval between fetches that returned no records. The interval is applied independently to each shard.</td>
+    </tr>
+    <tr>
+      <td><h5>source.reader.nonempty-records-fetch-interval</h5></td>
+      <td>optional</td>
+      <td>no</td>
+      <td style="word-wrap: break-word;">0 ms</td>
+      <td>Duration</td>
+      <td>The interval between fetches that returned records. By default there is no interval, and the next fetch is performed at the first opportunity. The interval is applied independently to each shard, limiting how often this source calls <code>GetRecords</code> on any single shard.</td>
+    </tr>
+    <tr>
       <td><h5>source.shard.get-records.max-record-count</h5></td>
       <td>optional</td>
       <td>no</td>
