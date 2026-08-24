@@ -37,10 +37,10 @@ import software.amazon.awssdk.services.kinesis.model.ResourceNotFoundException;
 import javax.annotation.Nullable;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -204,7 +204,7 @@ public abstract class KinesisShardSplitReaderBase
                 LOG.debug(
                         "Fetched zero records from split {}, scheduling next fetch at {}",
                         splitState.getSplitId(),
-                        new Date(scheduledGetRecordTimeMillis).toInstant());
+                        Instant.ofEpochMilli(scheduledGetRecordTimeMillis));
             }
         } else if (nonEmptyRecordsIntervalMillis > 0) {
             long scheduledGetRecordTimeMillis =
@@ -214,7 +214,7 @@ public abstract class KinesisShardSplitReaderBase
                         "Fetched {} records from split {}, scheduling next fetch at {}",
                         recordBatch.getRecords().size(),
                         splitState.getSplitId(),
-                        new Date(scheduledGetRecordTimeMillis).toInstant());
+                        Instant.ofEpochMilli(scheduledGetRecordTimeMillis));
             }
         }
     }
