@@ -409,7 +409,7 @@ Connector Options
       <td>no</td>
       <td style="word-wrap: break-word;">250 ms</td>
       <td>Duration</td>
-      <td>The interval between fetches that returned no records. The interval is applied independently to each shard.</td>
+      <td>The interval to wait on a shard after a fetch returned no records before fetching from it again.</td>
     </tr>
     <tr>
       <td><h5>source.reader.nonempty-records-fetch-interval</h5></td>
@@ -417,7 +417,7 @@ Connector Options
       <td>no</td>
       <td style="word-wrap: break-word;">0 ms</td>
       <td>Duration</td>
-      <td>The interval between fetches that returned records. By default there is no interval, and the next fetch is performed at the first opportunity. The interval is applied independently to each shard, limiting how often this source calls <code>GetRecords</code> on any single shard.</td>
+      <td>The interval to wait on a shard after a fetch returned records before fetching from it again. Defaults to no interval.</td>
     </tr>
     <tr>
       <td><h5>source.shard.get-records.max-record-count</h5></td>
