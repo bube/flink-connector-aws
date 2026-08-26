@@ -105,7 +105,10 @@ public abstract class KinesisShardSplitReaderBase
         RecordBatch recordBatch;
         try {
             recordBatch = fetchRecords(splitState);
-            maybeDeferNextFetch(splitState, recordBatch);
+            long deferIntervalMillis = getNextFetchDeferInterval(recordBatch);
+            if (deferIntervalMillis > 0) {
+                deferNextFetchBy(splitState, deferIntervalMillis);
+            }
         } catch (ResourceNotFoundException e) {
             LOG.warn(
                     "Failed to fetch records from shard {}: shard no longer exists. Marking split as complete",
@@ -173,9 +176,7 @@ public abstract class KinesisShardSplitReaderBase
                 return true;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new IOException(
-                        "Sleep was interrupted while skipping a deferred fetch",
-                        e);
+                throw new IOException("Sleep was interrupted while skipping a deferred fetch", e);
             }
         }
 
@@ -183,46 +184,29 @@ public abstract class KinesisShardSplitReaderBase
     }
 
     /**
-     * Defers the next fetch for the given split, if an interval is configured for it. To be called
-     * immediately after a fetchRecords() call.
-     *
-     * <p>If recordBatch is null or contains no records, the next fetch is deferred by
-     * emptyRecordsIntervalMillis. Until that time, the fetcher thread will skip fetching (and have a
-     * small sleep) for the split.
-     *
-     * <p>If recordBatch is not empty, the next fetch is deferred by nonEmptyRecordsIntervalMillis.
-     * When that interval is zero (the default), nothing is deferred and the next fetch on the split
-     * is performed at the first opportunity.
-     *
-     * @param splitState split state the fetchRecords() call was made for
-     * @param recordBatch record batch returned by fetchRecords()
+     * Returns how long the next fetch on the split should be deferred, based on whether the given
+     * batch returned records. Zero, the default for a non-empty batch, means the next fetch is not
+     * deferred and is performed at the first opportunity.
      */
-    private void maybeDeferNextFetch(KinesisShardSplitState splitState, RecordBatch recordBatch) {
-        if (recordBatch == null || recordBatch.getRecords().isEmpty()) {
-            long deferredUntilMillis = deferNextFetchUntil(splitState, emptyRecordsIntervalMillis);
-            if (LOG.isDebugEnabled()) {
-                LOG.debug(
-                        "Fetched zero records from split {}, deferring next fetch until {}",
-                        splitState.getSplitId(),
-                        Instant.ofEpochMilli(deferredUntilMillis));
-            }
-        } else if (nonEmptyRecordsIntervalMillis > 0) {
-            long deferredUntilMillis =
-                    deferNextFetchUntil(splitState, nonEmptyRecordsIntervalMillis);
-            if (LOG.isDebugEnabled()) {
-                LOG.debug(
-                        "Fetched {} records from split {}, deferring next fetch until {}",
-                        recordBatch.getRecords().size(),
-                        splitState.getSplitId(),
-                        Instant.ofEpochMilli(deferredUntilMillis));
-            }
-        }
+    private long getNextFetchDeferInterval(RecordBatch recordBatch) {
+        boolean fetchWasEmpty = recordBatch == null || recordBatch.getRecords().isEmpty();
+        return fetchWasEmpty ? emptyRecordsIntervalMillis : nonEmptyRecordsIntervalMillis;
     }
 
-    private long deferNextFetchUntil(KinesisShardSplitState splitState, long intervalMillis) {
-        long deferredUntilMillis = System.currentTimeMillis() + intervalMillis;
+    /**
+     * Defers the next fetch on the split until the given interval has elapsed. Until then, the
+     * fetcher thread will skip fetching (and have a small sleep) for the split.
+     */
+    private void deferNextFetchBy(KinesisShardSplitState splitState, long deferIntervalMillis) {
+        long deferredUntilMillis = System.currentTimeMillis() + deferIntervalMillis;
         this.fetchDeferredUntil.put(splitState, deferredUntilMillis);
-        return deferredUntilMillis;
+        if (LOG.isDebugEnabled()) {
+            LOG.debug(
+                    "Deferring next fetch on split {} by {}ms until {}",
+                    splitState.getSplitId(),
+                    deferIntervalMillis,
+                    Instant.ofEpochMilli(deferredUntilMillis));
+        }
     }
 
     /**
